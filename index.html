@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#18351f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Overstory Density">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title>Mobile Forest Overstory Density</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">Offline field tool</p>
+      <h1>Mobile Forest Overstory Density</h1>
+      <p class="subtitle">Estimate canopy closure directly from an upward phone image. No densiometer is required.</p>
+    </div>
+    <div class="status-pill" id="offlineStatus" aria-live="polite">Checking offline cache…</div>
+  </header>
+
+  <main>
+    <section class="card intro-card">
+      <h2>Field protocol</h2>
+      <p>
+        Use a vertically upward image from the same camera and lens setting each time. For densiometer-style sampling,
+        use the widest available lens or a fisheye adapter, keep exposure/focus fixed where possible, avoid direct sun glare,
+        and keep the phone level. Take four readings around the reference point or tree and average them.
+      </p>
+      <details>
+        <summary>What this app calculates</summary>
+        <p>
+          The primary estimate is a 96-dot densiometer-equivalent canopy closure: dots classified as sky openings are
+          treated as non-overstory, and dots classified as canopy are treated as occupied by overstory. A second estimate
+          uses all sampled pixels inside the selected circular field of view.
+        </p>
+      </details>
+    </section>
+
+    <section class="grid-layout analysis-layout">
+      <div class="card controls-card">
+        <h2>1. Load image</h2>
+        <div class="image-source-grid" role="group" aria-label="Image source">
+          <button type="button" id="addPhotoButton" class="photo-add-button">Add photo</button>
+          <input type="file" id="uploadInput" accept="image/*,.heic,.heif" aria-describedby="imageMeta">
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" aria-describedby="imageMeta">
+        </div>
+        <p class="small-note">Add a canopy image from the photo library/files or take a new photo when the browser exposes the camera option.</p>
+        <p class="small-note" id="imageMeta">No image loaded.</p>
+
+        <h2>2. Adjust photo</h2>
+        <fieldset class="photo-position-fieldset">
+          <legend>Photo position</legend>
+          <p class="small-note in-field-note">The photo moves underneath a fixed, centred 96-dot analysis window. Pinch or use the sliders to zoom and reposition the crop.</p>
+          <label for="imageZoom">Zoom <output id="imageZoomValue">100%</output></label>
+          <input type="range" id="imageZoom" min="100" max="400" value="100" step="1">
+          <label for="imageOffsetX">Horizontal position <output id="imageOffsetXValue">0%</output></label>
+          <input type="range" id="imageOffsetX" min="-100" max="100" value="0" step="1">
+          <label for="imageOffsetY">Vertical position <output id="imageOffsetYValue">0%</output></label>
+          <input type="range" id="imageOffsetY" min="-100" max="100" value="0" step="1">
+          <p class="small-note slider-hint" id="positionStatus" aria-live="polite">Load a photo to adjust position.</p>
+          <div class="button-row compact-row">
+            <button type="button" id="resetImagePosition" class="secondary">Reset photo position</button>
+          </div>
+        </fieldset>
+
+        <h2>3. Analyse</h2>
+        <p class="small-note analysis-step-note">The default settings work for most field photos. Use advanced settings only when you need to match a specific sampling protocol.</p>
+        <label for="gridMode">Sampling grid</label>
+        <select id="gridMode">
+          <option value="circular96" selected>Circular 96-dot densiometer-equivalent</option>
+          <option value="cross96">Cross 96-dot convex-densiometer equivalent</option>
+        </select>
+
+        <details class="advanced-settings">
+          <summary>Advanced analysis settings</summary>
+          <div class="advanced-settings-body">
+            <label for="classifierMode">Classifier</label>
+            <select id="classifierMode">
+              <option value="auto" selected>Auto brightness + colour</option>
+              <option value="brightness">Brightness only</option>
+              <option value="blue">Blue-sky emphasis</option>
+              <option value="green">Vegetation contrast</option>
+            </select>
+
+            <fieldset>
+              <legend>Pixel selection</legend>
+              <label class="check-control" for="negativeImage">
+                <input type="checkbox" id="negativeImage">
+                Analyse/display as negative image
+              </label>
+              <p class="small-note">
+                Negative mode inverts the displayed image and reverses the threshold direction for sky-opening selection.
+              </p>
+              <label for="pixelSensitivity">Sky-opening sensitivity <output id="pixelSensitivityValue">50</output></label>
+              <input type="range" id="pixelSensitivity" min="0" max="100" value="50">
+              <p class="small-note">Lower values are stricter; higher values classify more pixels as sky openings.</p>
+            </fieldset>
+
+            <div class="inline-control">
+              <label for="autoThreshold">
+                <input type="checkbox" id="autoThreshold" checked>
+                Auto threshold
+              </label>
+              <button type="button" id="recalcThreshold" class="secondary">Recalculate</button>
+            </div>
+
+            <label for="threshold">Sky threshold <output id="thresholdValue">0.50</output></label>
+            <input type="range" id="threshold" min="0" max="100" value="50">
+
+            <label for="patchSize">Dot patch size <output id="patchValue">1.4%</output></label>
+            <input type="range" id="patchSize" min="4" max="50" value="14">
+
+            <fieldset>
+              <legend>Analysis window</legend>
+              <p class="small-note in-field-note">The circle is fixed in the centre of the image window. Move the photo underneath it rather than moving the densiometer-equivalent overlay.</p>
+              <label for="roiR">Radius <output id="roiRValue">48%</output></label>
+              <input type="range" id="roiR" min="15" max="50" value="48">
+              <div class="button-row compact-row">
+                <button type="button" id="resetOverlay" class="secondary">Centre overlay</button>
+              </div>
+              <p class="small-note" id="overlayStatus">Overlay centred; effective radius 48%.</p>
+            </fieldset>
+          </div>
+        </details>
+
+        <div class="button-row analysis-actions">
+          <button type="button" id="analyseButton">Analyse image</button>
+          <button type="button" id="resetOverrides" class="secondary">Reset dot edits</button>
+        </div>
+      </div>
+
+      <div class="card canvas-card" id="imagePanel" tabindex="-1">
+        <div class="canvas-card-header">
+          <h2>Image and overlay</h2>
+          <button type="button" id="addPhotoButtonCanvas" class="secondary compact-button">Add photo</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="imageCanvas" aria-label="Image analysis canvas" aria-describedby="canvasGestureHelp"></canvas>
+          <div class="canvas-placeholder" id="canvasPlaceholder">Load a vertically upward canopy image.</div>
+        </div>
+        <div class="canvas-toolbar" role="group" aria-label="Image tools">
+          <button type="button" id="analyseQuick" class="compact-button">Analyse</button>
+          <button type="button" id="resetImagePositionQuick" class="secondary compact-button">Reset photo</button>
+          <button type="button" id="resetOverlayQuick" class="secondary compact-button">Centre overlay</button>
+          <button type="button" id="saveReadingQuick" class="secondary compact-button">Save</button>
+        </div>
+        <div class="mobile-reading-strip" id="mobileReadingStrip" aria-live="polite">
+          <span>96-dot <strong id="dotDensityMobile">—</strong></span>
+          <span>Pixel <strong id="pixelDensityMobile">—</strong></span>
+        </div>
+        <details class="mobile-photo-adjust" open>
+          <summary>Photo position</summary>
+          <label for="imageZoomQuick">Zoom <output id="imageZoomQuickValue">100%</output></label>
+          <input type="range" id="imageZoomQuick" min="100" max="400" value="100" step="1">
+          <label for="imageOffsetXQuick">Horizontal <output id="imageOffsetXQuickValue">0%</output></label>
+          <input type="range" id="imageOffsetXQuick" min="-100" max="100" value="0" step="1">
+          <label for="imageOffsetYQuick">Vertical <output id="imageOffsetYQuickValue">0%</output></label>
+          <input type="range" id="imageOffsetYQuick" min="-100" max="100" value="0" step="1">
+        </details>
+        <p class="analysis-area-line" id="analysisAreaReadout">Analysed pixel area: —</p>
+        <p class="small-note" id="canvasGestureHelp">
+          Tap a dot to manually toggle its class. Pinch on the image to zoom; drag after zooming to reposition. Green = canopy; blue = sky opening; ringed dots were manually edited.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid-layout results-layout">
+      <div class="card result-card">
+        <h2>Current reading</h2>
+        <div class="result-main">
+          <div>
+            <span class="metric-label">96-dot overstory density</span>
+            <strong id="dotDensity">—</strong>
+          </div>
+          <div>
+            <span class="metric-label">Pixel-area canopy closure</span>
+            <strong id="pixelDensity">—</strong>
+          </div>
+        </div>
+        <dl class="details-grid">
+          <div><dt>Sky-opening dots</dt><dd id="skyDots">—</dd></div>
+          <div><dt>Canopy dots</dt><dd id="canopyDots">—</dd></div>
+          <div><dt>Threshold base / effective</dt><dd id="thresholdReadout">—</dd></div>
+          <div><dt>Sky sensitivity</dt><dd id="sensitivityReadout">—</dd></div>
+          <div><dt>Negative mode</dt><dd id="negativeReadout">—</dd></div>
+          <div><dt>Valid ROI pixels</dt><dd id="pixelCount">—</dd></div>
+        </dl>
+        <label for="direction">Reading label</label>
+        <select id="direction">
+          <option>North</option>
+          <option>East</option>
+          <option>South</option>
+          <option>West</option>
+          <option>Other</option>
+        </select>
+        <label for="notes">Notes</label>
+        <textarea id="notes" rows="3" placeholder="Site, lens, cloud, exposure, comments"></textarea>
+        <div class="button-row">
+          <button type="button" id="saveReading">Save reading</button>
+          <button type="button" id="copySummary" class="secondary">Copy summary</button>
+        </div>
+      </div>
+
+      <div class="card readings-card">
+        <h2>Saved readings</h2>
+        <p class="summary-line" id="readingsSummary">No readings saved.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>96-dot %</th>
+                <th>Pixel %</th>
+                <th>Sky dots</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="readingsTable"></tbody>
+          </table>
+        </div>
+        <div class="button-row">
+          <button type="button" id="exportCsv" class="secondary">Export CSV</button>
+          <button type="button" id="clearReadings" class="danger">Clear readings</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card method-card">
+      <h2>Method notes</h2>
+      <p>
+        A standard spherical densiometer uses 24 squares subdivided into 96 imaginary dots. In this app the fixed central overlay
+        preserves that 96-dot sampling frame while the photo can be moved and zoomed underneath it. In dense canopies, sky-opening
+        dots are counted and converted to non-overstory area; the complement is overstory density. This app applies the
+        same 96-dot logic to a phone image, then adds a denser pixel-area estimate for comparison.
+      </p>
+      <p>
+        The output is comparable within a study only when acquisition is standardised. Use the negative-image and sensitivity
+        controls consistently within a dataset, because they change the pixel-classification decision boundary. A normal phone
+        lens samples a narrower and differently projected field of view than a spherical mirror, so treat the result as a
+        mobile-image analogue unless it has been calibrated against local densiometer readings or a hemispherical-photography
+        workflow.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>All image analysis runs locally in the browser. Once cached, the app works without a network connection.</p>
+  </footer>
+
+  <nav class="mobile-action-bar" aria-label="Mobile quick actions">
+    <button type="button" id="quickAddPhoto">Add photo</button>
+    <button type="button" id="quickAnalyse" class="secondary">Analyse</button>
+    <button type="button" id="quickSave" class="secondary">Save</button>
+  </nav>
+
+  <div class="photo-sheet-backdrop" id="photoSheet" hidden>
+    <div class="photo-sheet" role="dialog" aria-modal="true" aria-labelledby="photoSheetTitle" aria-describedby="photoSheetDescription">
+      <h2 id="photoSheetTitle">Add photo</h2>
+      <p class="small-note" id="photoSheetDescription">Choose the most reliable source for this device. Some Android browsers expose the camera only through the camera-specific option.</p>
+      <button type="button" id="chooseCamera">Take photo</button>
+      <button type="button" id="chooseLibrary" class="secondary">Choose from photos/files</button>
+      <button type="button" id="cancelPhotoSheet" class="secondary">Cancel</button>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

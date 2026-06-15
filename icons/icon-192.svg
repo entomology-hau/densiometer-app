@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Densiometer icon">
+  <rect width="512" height="512" rx="80" fill="#1f3426"/>
+  <circle cx="256" cy="256" r="152" fill="#dfe8df"/>
+  <circle cx="256" cy="256" r="128" fill="#2d4e38"/>
+  <path d="M144 256h224M256 144v224M176 192h160M176 320h160M192 176v160M320 176v160" stroke="#e7f4e9" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="202" cy="202" r="10" fill="#8bd0ff"/>
+  <circle cx="256" cy="218" r="10" fill="#8bd0ff"/>
+  <circle cx="310" cy="202" r="10" fill="#8bd0ff"/>
+  <circle cx="218" cy="272" r="10" fill="#8bd0ff"/>
+  <circle cx="294" cy="288" r="10" fill="#8bd0ff"/>
+</svg>
